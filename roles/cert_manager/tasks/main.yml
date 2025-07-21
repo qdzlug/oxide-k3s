@@ -1,0 +1,37 @@
+---
+- name: Add Jetstack Helm repo
+  kubernetes.core.helm_repository:
+    name: jetstack
+    repo_url: "{{ cert_manager_helm_repo }}"
+    force_update: true
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Install cert-manager via Helm
+  kubernetes.core.helm:
+    name: cert-manager
+    chart_ref: jetstack/cert-manager
+    release_namespace: cert-manager
+    create_namespace: true
+    chart_version: "{{ cert_manager_helm_version }}"
+    values:
+      installCRDs: true
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+
+- name: Render ClusterIssuer manifest
+  ansible.builtin.template:
+    src: "clusterissuer_{{ cert_manager_challenge_type }}.yaml.j2"
+    dest: /tmp/clusterissuer.yaml
+  delegate_to: localhost
+  run_once: true
+
+- name: Apply ClusterIssuer
+  kubernetes.core.k8s:
+    src: /tmp/clusterissuer.yaml
+    state: present
+  delegate_to: localhost
+  run_once: true

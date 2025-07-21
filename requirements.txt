@@ -1,0 +1,7 @@
+ansible>=9.0.0
+kubernetes
+openshift
+PyYAML
+ansible
+jmespath
+ansible-lint

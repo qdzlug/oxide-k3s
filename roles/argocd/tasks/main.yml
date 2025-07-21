@@ -1,0 +1,102 @@
+- name: Create argocd namespace
+  kubernetes.core.k8s:
+    api_version: v1
+    kind: Namespace
+    name: argocd
+    state: present
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Add argo Helm repo
+  community.kubernetes.helm_repository:
+    name: argo
+    repo_url: https://argoproj.github.io/argo-helm
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Install ArgoCD via Helm
+  community.kubernetes.helm:
+    name: argocd
+    chart_ref: argo/argo-cd
+    release_namespace: argocd
+    create_namespace: true
+    update_repo_cache: true
+    values:
+      server:
+        service:
+          type: ClusterIP
+        extraArgs:
+          - --insecure
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Set nginx_lb_ip from inventory
+  set_fact:
+    nginx_lb_ip: "{{ hostvars[groups['lb'][0]]['ansible_host'] | default(groups['lb'][0]) }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Deploy ArgoCD Ingress with TLS (via cert-manager)
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: argocd
+        namespace: argocd
+        annotations:
+          cert-manager.io/cluster-issuer: "{{ argocd_tls_issuer | default('letsencrypt-dns') }}"
+          nginx.ingress.kubernetes.io/ssl-redirect: "true"
+          external-dns.alpha.kubernetes.io/hostname: "{{ argocd_hostname }}"
+          external-dns.alpha.kubernetes.io/target: "{{ nginx_lb_ip }}"
+      spec:
+        ingressClassName: traefik
+        tls:
+          - hosts:
+              - "{{ argocd_hostname }}"
+            secretName: argocd-tls
+        rules:
+          - host: "{{ argocd_hostname }}"
+            http:
+              paths:
+                - path: /
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: argocd-server
+                      port:
+                        number: 80
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Wait for ArgoCD via HTTPS with host spoofing
+  ansible.builtin.uri:
+    url: "https://{{ nginx_lb_ip }}/"
+    method: GET
+    headers:
+      Host: "{{ argocd_hostname }}"
+    validate_certs: false
+    return_content: true
+    status_code: 200
+  delegate_to: localhost
+  run_once: true
+  become: false
+  register: argo_https_check
+  retries: 10
+  delay: 5
+  ignore_errors: true
+  until: argo_https_check is defined and
+         (argo_https_check.status | default(0)) == 200
+
+- name: Debug HTTPS response (for troubleshooting)
+  debug:
+    msg:
+      - "Status: {{ argo_https_check.status | default('undefined') }}"
+      - "Headers: {{ argo_https_check.headers | default('undefined') }}"
+      - "Body: {{ argo_https_check.content | default('undefined') | truncate(300) }}"
+  when: argo_https_check is defined

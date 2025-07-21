@@ -1,0 +1,36 @@
+---
+longhorn_helm_values:
+  global:
+    nodeSelector:
+      kubernetes.io/os: linux
+  networkPolicies:
+    enabled: true
+    type: "k3s"
+  persistence:
+    defaultClass: true
+    defaultFsType: ext4
+    defaultClassReplicaCount: 1
+    defaultDataLocality: disabled
+    reclaimPolicy: Delete
+    migratable: true
+    disableRevisionCounter: "true"
+    dataEngine: v2
+  preUpgradeChecker:
+    jobEnabled: false
+    upgradeVersionCheck: false
+  ingress:
+    enabled: false
+  metrics:
+    serviceMonitor:
+      enabled: false
+  defaultSettings:
+    defaultReplicaCount: 1
+    defaultDataPath: /var/lib/longhorn
+    storageOverProvisioningPercentage: 200
+    storageMinimalAvailablePercentage: 10
+    upgradeChecker: true
+    autoSalvage: true
+    replicaAutoBalance: "least-effort"
+    concurrentReplicaRebuildPerNodeLimit: 2
+    snapshotMaxCount: 40
+    taintToleration: "CriticalAddonsOnly=true:NoExecute"

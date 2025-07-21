@@ -1,0 +1,12 @@
+stream {
+    upstream traefik_https {
+    {% for host in traefik_backend_hosts %}
+        server {{ host }}:{{ traefik_https_nodeport }};
+    {% endfor %}
+    }
+
+    server {
+        listen 443;
+        proxy_pass traefik_https;
+    }
+}

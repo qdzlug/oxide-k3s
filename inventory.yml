@@ -1,0 +1,31 @@
+k3s_cluster:
+  children:
+    server:
+      hosts:
+        172.21.252.192: {}
+        172.21.252.200: {}
+        172.21.252.202: {}
+    agent:
+      hosts:
+        172.21.252.190: {}
+        172.21.252.189: {}
+        172.21.252.201: {}
+
+  vars:
+    ansible_port: 22
+    ansible_user: ubuntu
+    k3s_version: "v1.30.2+k3s1"
+    token: "changeme!"
+    api_endpoint: "172.30.0.9"
+    extra_server_args: "--tls-san 172.30.0.9 --tls-san 172.21.252.192"
+
+lb:
+  hosts:
+    172.21.252.187:
+      traefik_backend_hosts:
+        - 172.30.0.9
+        - 172.30.0.8
+        - 172.30.0.10
+        - 172.30.0.6
+        - 172.30.0.7
+        - 172.30.0.11
