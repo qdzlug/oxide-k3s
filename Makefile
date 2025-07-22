@@ -98,6 +98,11 @@ rmt:
 	@echo -e "\033[1;32m==>\033[0m $(ANSIBLE) playbooks/rmt.yml -i inventory.yml"
 	$(ANSIBLE) playbooks/rmt.yaml -i inventory.yml
 
+.PHONY: external-dns
+external-dns:
+	@echo "Configuring external-dns..."
+	$(ANSIBLE) playbooks/external-dns.yaml -i inventory.yml
+
 .PHONY: fix-kubeconfig
 fix-kubeconfig:
 	@echo "Fixing kubeconfig to use external IP..."

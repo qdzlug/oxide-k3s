@@ -1,0 +1,37 @@
+replicaCount: 1
+
+groupName: "{{ cert_manager_webhook_group_name }}"
+
+certManager:
+  namespace: cert-manager
+  serviceAccountName: cert-manager
+
+dnsimple:
+  accountSecret:
+    create: false
+    name: dnsimple-api-token-secret
+    key: token
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+affinity: {}
+
+tolerations: []
+
+nodeSelector: {}
+
+ingress:
+  enabled: false
+
+serviceMonitor:
+  enabled: false
+
+rbac:
+  create: false
+

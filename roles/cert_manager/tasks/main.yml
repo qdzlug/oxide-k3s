@@ -21,6 +21,115 @@
   become: false
   run_once: true
 
+- name: Add Puzzle DNSimple webhook Helm repo
+  kubernetes.core.helm_repository:
+    name: certmanager-webhook
+    repo_url: https://puzzle.github.io/cert-manager-webhook-dnsimple
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: cert_manager_challenge_type == 'dns01'
+
+- name: Install Puzzle DNSimple webhook via Helm
+  kubernetes.core.helm:
+    name: cert-manager-webhook-dnsimple
+    chart_ref: certmanager-webhook/cert-manager-webhook-dnsimple
+    release_namespace: cert-manager
+    create_namespace: false
+    values:
+      groupName: "{{ cert_manager_webhook_group_name }}"
+    wait: true
+    update_repo_cache: true
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: cert_manager_challenge_type == 'dns01'
+
+- name: Create DNSimple secret (for DNS01)
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: dnsimple-api-token-secret
+        namespace: cert-manager
+      stringData:
+        token: "{{ dnsimple_token }}"
+  when: cert_manager_challenge_type == 'dns01'
+  delegate_to: localhost
+  run_once: true
+
+- name: Create ClusterRole for DNSimple webhook
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: cert-manager-dnsimple-webhook
+      rules:
+        - apiGroups: ["{{ cert_manager_webhook_group_name }}"]
+          resources: ["dnsimple"]
+          verbs: ["*"]
+  when: cert_manager_challenge_type == 'dns01'
+
+- name: Create ClusterRoleBinding for DNSimple webhook
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: cert-manager-dnsimple-webhook
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: cert-manager-dnsimple-webhook
+      subjects:
+        - kind: ServiceAccount
+          name: cert-manager
+          namespace: cert-manager
+  when: cert_manager_challenge_type == 'dns01'
+
+- name: Create Role for webhook to access DNSimple token
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      kind: Role
+      apiVersion: rbac.authorization.k8s.io/v1
+      metadata:
+        name: dnsimple-token-reader
+        namespace: cert-manager
+      rules:
+        - apiGroups: [""]
+          resources: ["secrets"]
+          resourceNames: ["dnsimple-api-token-secret"]
+          verbs: ["get"]
+  when: cert_manager_challenge_type == 'dns01'
+  delegate_to: localhost
+  run_once: true
+
+- name: Bind Role to webhook service account
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      kind: RoleBinding
+      apiVersion: rbac.authorization.k8s.io/v1
+      metadata:
+        name: dnsimple-token-reader-binding
+        namespace: cert-manager
+      subjects:
+        - kind: ServiceAccount
+          name: cert-manager-webhook-dnsimple
+          namespace: cert-manager
+      roleRef:
+        kind: Role
+        name: dnsimple-token-reader
+        apiGroup: rbac.authorization.k8s.io
+  when: cert_manager_challenge_type == 'dns01'
+  delegate_to: localhost
+  run_once: true
 
 - name: Render ClusterIssuer manifest
   ansible.builtin.template:

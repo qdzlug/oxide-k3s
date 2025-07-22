@@ -1,0 +1,9 @@
+---
+external_dns_namespace: external-dns
+external_dns_provider: dnsimple
+dnsimple_token: dnsimple_a_vkDcGOp6WmQLRQpRuXTEYclWVPGKbiK0
+dnsimple_domain: virington.com
+dnsimple_account_id: "122355"
+external_dns_image: registry.k8s.io/external-dns/external-dns:v0.16.1
+external_dns_txt_owner_id: k8s
+external_dns_txt_prefix: external-dns-
