@@ -21,6 +21,16 @@
   become: false
   run_once: true
 
+- name: Wait for cert-manager webhook pod to be Ready
+  shell: |
+    kubectl get pod -n cert-manager -l app.kubernetes.io/component=webhook -o jsonpath="{.items[0].status.conditions[?(@.type=='Ready')].status}"
+  register: pod_ready_check
+  until: pod_ready_check.stdout == "True"
+  retries: 12
+  delay: 5
+  delegate_to: localhost
+  changed_when: false
+
 - name: Add Puzzle DNSimple webhook Helm repo
   kubernetes.core.helm_repository:
     name: certmanager-webhook
@@ -138,9 +148,26 @@
   delegate_to: localhost
   run_once: true
 
-- name: Apply ClusterIssuer
-  kubernetes.core.k8s:
-    src: /tmp/clusterissuer.yaml
-    state: present
+- name: Check if ClusterIssuer already exists
+  ansible.builtin.command: kubectl get clusterissuer letsencrypt-dns
+  register: clusterissuer_check
+  ignore_errors: true
+  changed_when: false
   delegate_to: localhost
   run_once: true
+
+- name: Create ClusterIssuer only if not present
+  ansible.builtin.command: kubectl create -f /tmp/clusterissuer.yaml
+  when: clusterissuer_check.rc != 0
+  register: clusterissuer_create
+  retries: 5
+  delay: 5
+  until: clusterissuer_create.rc == 0
+  changed_when: "'created' in clusterissuer_create.stdout"
+  delegate_to: localhost
+  run_once: true
+
+- name: Log when ClusterIssuer already exists
+  ansible.builtin.debug:
+    msg: "ClusterIssuer already exists — skipping create."
+  when: clusterissuer_check.rc == 0
