@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jupyter-notebook
+  namespace: jupyter
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-dns"
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    external-dns.alpha.kubernetes.io/hostname: "jupyter.virington.com"
+    external-dns.alpha.kubernetes.io/target: "172.21.252.144"
+spec:
+  ingressClassName: traefik
+  tls:
+  - hosts:
+    - "jupyter.virington.com"
+    secretName: jupyter-tls
+  rules:
+  - host: "jupyter.virington.com"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: jupyter-notebook
+            port:
+              number: 8888

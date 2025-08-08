@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jupyter-notebook
+  namespace: argocd
+  labels:
+    app: jupyter-notebook
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/qdzlug/oxide-k3s.git'
+    path: argocd-apps/jupyter
+    targetRevision: HEAD
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: jupyter
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+  revisionHistoryLimit: 3
