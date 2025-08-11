@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: whoami
+  namespace: argocd
+  labels:
+    app: whoami
+spec:
+  project: default
+  source:
+    repoURL: '{{ argocd_repo_url }}'
+    path: argocd-apps/whoami
+    targetRevision: {{ argocd_repo_branch }}
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: whoami
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+  revisionHistoryLimit: 3

@@ -1,0 +1,173 @@
+---
+- name: Add Jetstack Helm repo
+  kubernetes.core.helm_repository:
+    name: jetstack
+    repo_url: "{{ cert_manager_helm_repo }}"
+    force_update: true
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Install cert-manager via Helm
+  kubernetes.core.helm:
+    name: cert-manager
+    chart_ref: jetstack/cert-manager
+    release_namespace: cert-manager
+    create_namespace: true
+    chart_version: "{{ cert_manager_helm_version }}"
+    values:
+      installCRDs: true
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Wait for cert-manager webhook pod to be Ready
+  shell: |
+    kubectl get pod -n cert-manager -l app.kubernetes.io/component=webhook -o jsonpath="{.items[0].status.conditions[?(@.type=='Ready')].status}"
+  register: pod_ready_check
+  until: pod_ready_check.stdout == "True"
+  retries: 12
+  delay: 5
+  delegate_to: localhost
+  changed_when: false
+
+- name: Add Puzzle DNSimple webhook Helm repo
+  kubernetes.core.helm_repository:
+    name: certmanager-webhook
+    repo_url: https://puzzle.github.io/cert-manager-webhook-dnsimple
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: cert_manager_challenge_type == 'dns01'
+
+- name: Install Puzzle DNSimple webhook via Helm
+  kubernetes.core.helm:
+    name: cert-manager-webhook-dnsimple
+    chart_ref: certmanager-webhook/cert-manager-webhook-dnsimple
+    release_namespace: cert-manager
+    create_namespace: false
+    values:
+      groupName: "{{ cert_manager_webhook_group_name }}"
+    wait: true
+    update_repo_cache: true
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: cert_manager_challenge_type == 'dns01'
+
+- name: Create DNSimple secret (for DNS01)
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: dnsimple-api-token-secret
+        namespace: cert-manager
+      stringData:
+        token: "{{ dnsimple_token }}"
+  when: cert_manager_challenge_type == 'dns01'
+  delegate_to: localhost
+  run_once: true
+
+- name: Create ClusterRole for DNSimple webhook
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: cert-manager-dnsimple-webhook
+      rules:
+        - apiGroups: ["{{ cert_manager_webhook_group_name }}"]
+          resources: ["dnsimple"]
+          verbs: ["*"]
+  when: cert_manager_challenge_type == 'dns01'
+
+- name: Create ClusterRoleBinding for DNSimple webhook
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: cert-manager-dnsimple-webhook
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: cert-manager-dnsimple-webhook
+      subjects:
+        - kind: ServiceAccount
+          name: cert-manager
+          namespace: cert-manager
+  when: cert_manager_challenge_type == 'dns01'
+
+- name: Create Role for webhook to access DNSimple token
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      kind: Role
+      apiVersion: rbac.authorization.k8s.io/v1
+      metadata:
+        name: dnsimple-token-reader
+        namespace: cert-manager
+      rules:
+        - apiGroups: [""]
+          resources: ["secrets"]
+          resourceNames: ["dnsimple-api-token-secret"]
+          verbs: ["get"]
+  when: cert_manager_challenge_type == 'dns01'
+  delegate_to: localhost
+  run_once: true
+
+- name: Bind Role to webhook service account
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      kind: RoleBinding
+      apiVersion: rbac.authorization.k8s.io/v1
+      metadata:
+        name: dnsimple-token-reader-binding
+        namespace: cert-manager
+      subjects:
+        - kind: ServiceAccount
+          name: cert-manager-webhook-dnsimple
+          namespace: cert-manager
+      roleRef:
+        kind: Role
+        name: dnsimple-token-reader
+        apiGroup: rbac.authorization.k8s.io
+  when: cert_manager_challenge_type == 'dns01'
+  delegate_to: localhost
+  run_once: true
+
+- name: Render ClusterIssuer manifest
+  ansible.builtin.template:
+    src: "clusterissuer_{{ cert_manager_challenge_type }}.yaml.j2"
+    dest: /tmp/clusterissuer.yaml
+  delegate_to: localhost
+  run_once: true
+
+- name: Check if ClusterIssuer already exists
+  ansible.builtin.command: kubectl get clusterissuer letsencrypt-dns
+  register: clusterissuer_check
+  ignore_errors: true
+  changed_when: false
+  delegate_to: localhost
+  run_once: true
+
+- name: Create ClusterIssuer only if not present
+  ansible.builtin.command: kubectl create -f /tmp/clusterissuer.yaml
+  when: clusterissuer_check.rc != 0
+  register: clusterissuer_create
+  retries: 5
+  delay: 5
+  until: clusterissuer_create.rc == 0
+  changed_when: "'created' in clusterissuer_create.stdout"
+  delegate_to: localhost
+  run_once: true
+
+- name: Log when ClusterIssuer already exists
+  ansible.builtin.debug:
+    msg: "ClusterIssuer already exists — skipping create."
+  when: clusterissuer_check.rc == 0

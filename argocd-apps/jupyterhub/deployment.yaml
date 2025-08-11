@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jupyterhub
+  namespace: jupyterhub
+  labels:
+    app: jupyterhub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jupyterhub
+  template:
+    metadata:
+      labels:
+        app: jupyterhub
+    spec:
+      serviceAccountName: jupyterhub
+      containers:
+      - name: jupyterhub
+        image: jupyterhub/jupyterhub:4.0
+        ports:
+        - containerPort: 8000
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        command: ["jupyterhub", "-f", "/etc/jupyterhub/jupyterhub_config.py"]
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/jupyterhub
+        - name: db-volume
+          mountPath: /srv/jupyterhub
+      volumes:
+      - name: config-volume
+        configMap:
+          name: jupyterhub-config
+      - name: db-volume
+        emptyDir: {}

@@ -1,0 +1,58 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kasm
+  namespace: argocd
+  labels:
+    app: kasm
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/kasmtech/kasm-helm.git'
+    path: kasm-single-zone
+    targetRevision: release/1.17.0
+    helm:
+      valueFiles:
+      - values.yaml
+      values: |
+        global:
+          namespace: kasm
+          clusterDomain: cluster.local
+          hostname: kasm.virington.com
+          ingressClassName: traefik
+        
+        kasmApp:
+          name: kasm
+          zoneName: default
+          deploymentSize: small
+          servicesToDeploy:
+            kasmProxy:
+              replicas: 1
+            db:
+              replicas: 1
+            kasmApi:
+              replicas: 1
+            kasmManager:
+              replicas: 1
+            kasmGuac:
+              replicas: 1
+            rdpGateway:
+              replicas: 1
+            rdpHttpsGateway:
+              replicas: 1
+            kasmShare:
+              replicas: 1
+            
+        kasmCerts:
+          ingress:
+            enabled: false
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: kasm
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+  revisionHistoryLimit: 3

@@ -63,9 +63,29 @@ spec:
             - --registry=txt
             - --txt-owner-id={{ external_dns_txt_owner_id }}
             - --txt-prefix={{ external_dns_txt_prefix }}
-            - --domain-filter={{ dnsimple_domain }}
+{% if dns_domain is defined and dns_domain != "" %}
+            - --domain-filter={{ dns_domain }}
+{% endif %}
+            - --ingress-class=traefik
             - --log-level=info
             - --log-format=text
           env:
+{% if external_dns_provider == 'dnsimple' %}
             - name: DNSIMPLE_OAUTH
-              value: {{ dnsimple_token }}
+              valueFrom:
+                secretKeyRef:
+                  name: dnsimple-token
+                  key: token
+{% elif external_dns_provider == 'cloudflare' %}
+            - name: CF_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cloudflare-token
+                  key: apiToken
+{% elif external_dns_provider == 'digitalocean' %}
+            - name: DO_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: digitalocean-token
+                  key: token
+{% endif %}

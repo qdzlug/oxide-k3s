@@ -26,3 +26,6 @@ lb:
 %{ for ip in backend_ips ~}
         - ${ip}
 %{ endfor ~}
+  vars:
+    nginx_lb_ip: "${nginx_lb_ip}"
+    nginx_lb_internal_ip: "${nginx_lb_internal_ip}"

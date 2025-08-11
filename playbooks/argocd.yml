@@ -1,0 +1,106 @@
+---
+- name: Deploy ArgoCD
+  hosts: "{{ groups['server'][0] }}"
+  gather_facts: true
+  vars:
+    kubeconfig: "{{ ansible_env.HOME }}/.kube/config"
+  pre_tasks:
+    - name: Verify cluster is accessible
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Node
+      delegate_to: localhost
+      become: false
+      run_once: true
+      register: cluster_nodes
+
+    - name: Display cluster information
+      debug:
+        msg: "Connected to cluster with {{ cluster_nodes.resources | length }} nodes"
+      run_once: true
+
+    - name: Check if cert-manager is deployed
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Namespace
+        name: cert-manager
+      delegate_to: localhost
+      become: false
+      run_once: true
+      register: cert_manager_ns
+      ignore_errors: true
+
+    - name: Warn if cert-manager is not deployed
+      debug:
+        msg: "⚠️  Warning: cert-manager namespace not found. ArgoCD will use self-signed certificates if cert-manager is not deployed."
+      when: cert_manager_ns.resources | length == 0
+      run_once: true
+
+    - name: Check if external-dns is deployed
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Namespace
+        name: external-dns
+      delegate_to: localhost
+      become: false
+      run_once: true
+      register: external_dns_ns
+      ignore_errors: true
+
+    - name: Warn if external-dns is not deployed
+      debug:
+        msg: "⚠️  Warning: external-dns namespace not found. DNS records will not be automatically managed."
+      when: external_dns_ns.resources | length == 0
+      run_once: true
+
+  roles:
+    - role: argocd
+
+  post_tasks:
+    - name: Verify ArgoCD deployment
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        name: argocd-server
+        namespace: argocd
+      delegate_to: localhost
+      become: false
+      run_once: true
+      register: argocd_deployment
+
+    - name: Display deployment status
+      debug:
+        msg: 
+          - "ArgoCD Server Deployment Status:"
+          - "  Ready Replicas: {{ argocd_deployment.resources[0].status.readyReplicas | default(0) }}"
+          - "  Desired Replicas: {{ argocd_deployment.resources[0].status.replicas | default(0) }}"
+      run_once: true
+
+    - name: Check ingress status
+      kubernetes.core.k8s_info:
+        api_version: networking.k8s.io/v1
+        kind: Ingress
+        name: argocd
+        namespace: argocd
+      delegate_to: localhost
+      become: false
+      run_once: true
+      register: argocd_ingress
+
+    - name: Display next steps
+      debug:
+        msg:
+          - "🎉 ArgoCD deployment completed!"
+          - ""
+          - "📋 Next Steps:"
+          - "1. Access ArgoCD at: https://{{ argocd_hostname }}"
+          - "2. Login with username: admin"
+          - "3. Use the password displayed above"
+          - "4. Consider changing the admin password after first login"
+          - ""
+          - "🔧 Useful Commands:"
+          - "  kubectl -n argocd get pods"
+          - "  kubectl -n argocd get svc"
+          - "  kubectl -n argocd get ingress"
+          - "  kubectl -n argocd logs -l app.kubernetes.io/name=argocd-server"
+      run_once: true

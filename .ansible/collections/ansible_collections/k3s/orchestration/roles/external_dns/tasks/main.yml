@@ -1,0 +1,100 @@
+---
+- name: Ensure external-dns namespace exists
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ external_dns_namespace }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Create secret for DNSimple token
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: dnsimple-token
+        namespace: "{{ external_dns_namespace }}"
+      stringData:
+        #DNSIMPLE_OAUTH_TOKEN: "{{ dnsimple_token }}"
+        token: "{{ dnsimple_token }}"
+  delegate_to: localhost
+  run_once: true
+  when: external_dns_provider == 'dnsimple'
+
+- name: Set nginx_lb_ip from inventory
+  set_fact:
+    nginx_lb_ip: "{{ hostvars[groups['lb'][0]]['ansible_host'] | default(groups['lb'][0]) }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Render ExternalDNS manifest into a variable
+  set_fact:
+    external_dns_resources: "{{ lookup('template', 'external-dns.yaml.j2') | from_yaml_all }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Apply ExternalDNS manifest
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ item }}"
+  loop: "{{ external_dns_resources }}"
+  loop_control:
+    label: "{{ item.kind }} {{ item.metadata.name }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Wait for external-dns deployment to be available
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: external-dns
+    namespace: "{{ external_dns_namespace }}"
+  register: external_dns_deployment
+  delegate_to: localhost
+  run_once: true
+
+- name: Wait until external-dns deployment is available
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: external-dns
+    namespace: "{{ external_dns_namespace }}"
+  register: external_dns_deployment
+  until: >
+    external_dns_deployment.resources | length > 0 and
+    external_dns_deployment.resources[0].status.conditions is defined and
+    (
+      external_dns_deployment.resources[0].status.conditions | selectattr('type', 'equalto', 'Available') | selectattr('status', 'equalto', 'True') | list
+    ) | length > 0
+  retries: 12
+  delay: 10
+  delegate_to: localhost
+  run_once: true
+
+- name: Show external-dns rollout status
+  shell: |
+    kubectl rollout status deployment/external-dns -n {{ external_dns_namespace }} --timeout=60s
+  register: external_dns_rollout
+  changed_when: false
+  failed_when: external_dns_rollout.rc != 0
+  delegate_to: localhost
+  run_once: true
+
+- name: Display external-dns logs (first 20 lines, if pod exists)
+  shell: |
+    POD=$(kubectl get pods -n {{ external_dns_namespace }} -l app=external-dns -o jsonpath='{.items[0].metadata.name}')
+    kubectl logs -n {{ external_dns_namespace }} $POD --tail=20
+  register: external_dns_logs
+  changed_when: false
+  failed_when: false
+  delegate_to: localhost
+  run_once: true
+
+- name: Show external-dns logs (for troubleshooting)
+  debug:
+    msg: "{{ external_dns_logs.stdout_lines }}"

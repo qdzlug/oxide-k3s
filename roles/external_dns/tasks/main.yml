@@ -1,4 +1,25 @@
 ---
+- name: Check if external-dns is enabled
+  debug:
+    msg: "external-dns is {{ 'enabled' if external_dns_enabled | default(true) else 'disabled' }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Skip external-dns deployment when disabled
+  debug:
+    msg: "Skipping external-dns deployment - external_dns_enabled is set to false"
+  when: not (external_dns_enabled | default(true))
+  delegate_to: localhost
+  run_once: true
+
+- name: End play early if external-dns is disabled
+  meta: end_host
+  when: not (external_dns_enabled | default(true))
+
+- name: End play early if DNS provider is 'none'
+  meta: end_host
+  when: external_dns_provider == 'none'
+
 - name: Ensure external-dns namespace exists
   kubernetes.core.k8s:
     state: present
@@ -20,11 +41,40 @@
         name: dnsimple-token
         namespace: "{{ external_dns_namespace }}"
       stringData:
-        #DNSIMPLE_OAUTH_TOKEN: "{{ dnsimple_token }}"
         token: "{{ dnsimple_token }}"
   delegate_to: localhost
   run_once: true
   when: external_dns_provider == 'dnsimple'
+
+- name: Create secret for Cloudflare token
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: cloudflare-token
+        namespace: "{{ external_dns_namespace }}"
+      stringData:
+        apiToken: "{{ cloudflare_api_token }}"
+  delegate_to: localhost
+  run_once: true
+  when: external_dns_provider == 'cloudflare'
+
+- name: Create secret for DigitalOcean token
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: digitalocean-token
+        namespace: "{{ external_dns_namespace }}"
+      stringData:
+        token: "{{ digitalocean_token }}"
+  delegate_to: localhost
+  run_once: true
+  when: external_dns_provider == 'digitalocean'
 
 - name: Set nginx_lb_ip from inventory
   set_fact:

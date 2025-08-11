@@ -1,0 +1,161 @@
+= k3s-ansible on Oxide
+Author::    (Based on upstream k3s-ansible by itwars and dereknola)
+:toc:
+:toclevels: 2
+:doctype: article
+:icons: font
+
+== SUSE RMT Support
+
+This version of the project introduces full support for deploying SUSE Repository Mirroring Tool (RMT) as a Helm chart on top of the K3s cluster.
+
+Key features include:
+
+* **Longhorn for Persistent Storage:**
+  RMT and its MariaDB backend use Longhorn for volume storage, ensuring robust, highly available PVCs across worker nodes.
+
+* **Traefik Ingress Controller:**
+  The deployment uses the internal Traefik instance bundled with K3s to expose the RMT service. Ingress rules are configured automatically during installation.
+
+* **Cert-Manager Integration:**
+  TLS is enabled via cert-manager, and the user can choose between:
+  - A self-signed ClusterIssuer for internal testing and air-gapped environments
+  - A Let's Encrypt ClusterIssuer using HTTP01 challenge, ideal for public or test-lab deployments
+
+* **Ingress Routing via NGINX:**
+  While RMT is exposed internally via Traefik, a standalone NGINX instance still functions as the external reverse proxy to NodePorts exposed by Traefik. This maintains a single public entrypoint for TLS and access control, while minimizing changes to core service exposure.
+
+* **Playbook-Driven Deployment:**
+  The `rmt.yml` playbook and `rmt` Ansible role fully automate the Helm-based deployment of SUSE RMT, including secrets injection, issuer creation, ingress setup, and application validation.
+
+* **Makefile Support:**
+  The Makefile now includes `make longhorn` and `make rmt` targets, and both are included in `make full-deploy`.
+
+This support aligns with SUSE’s current recommendation of using OCI-based Helm charts stored at `oci://registry.suse.com/suse/rmt-helm`.
+
+== What's New in This Fork
+
+* **Oxide Rack Infrastructure:**
+  A complete Terraform configuration under `./infra/oxide` uses the Oxide provider to create the required infrastructure (project, VPC, subnets, instances, disks, and firewall rules) on an Oxide rack.
+
+* **Custom Inventory Generation:**
+  Terraform generates an Ansible inventory file (via templates in `./infra/oxide/templates`) that splits hosts into server and agent groups. Additional variables are appended to support our custom K3s configuration (e.g. using the internal IP for the API endpoint and constructing TLS SANs).
+
+* **Kubeconfig Post-Processing:**
+  A separate Ansible playbook (`./infra/oxide/fix-kubeconfig.yml`) is provided to update the generated kubeconfig file—replacing the internal IP with the external IP so remote access via kubectl works correctly.
+
+* **Makefile Automation:**
+  A Makefile is included with tasks to validate Terraform, bring up/destroy infrastructure, deploy the environment via Ansible, run kubectl checks, and more. This simplifies the overall deployment workflow.
+
+* **Environment Variable Checks:**
+  The Makefile includes a target to ensure that essential environment variables (such as `OXIDE_HOST` and `OXIDE_TOKEN`) are set before deployment.
+
+== Prerequisites
+
+* **Terraform 1.x:**
+  Ensure Terraform is installed and available in your PATH.
+
+* **Ansible 8.0+ (ansible-core 2.15+):**
+  The control node must have a recent version of Ansible installed.
+
+* **kubectl:**
+  Installed on the control node for cluster interaction.
+
+* **OXIDE_HOST and OXIDE_TOKEN:**
+  These environment variables must be set for the Oxide provider to authenticate. Use the provided Makefile target to check these.
+
+== Installation & Usage
+
+=== 1. Prepare the Environment
+
+* Clone the repository and change into the directory:
+
+[source,bash]
+----
+git clone https://github.com/<your-username>/k3s-ansible.git
+cd k3s-ansible
+----
+
+* Set the required environment variables:
+
+[source,bash]
+----
+export OXIDE_HOST=<your-oxide-host>
+export OXIDE_TOKEN=<your-oxide-token>
+----
+
+=== 2. Configure Variables
+
+The Oxide-specific Terraform variables are defined in `./infra/oxide/terraform.tfvars`. Verify or update these values as needed:
+
+[source,hcl]
+----
+project_name    = "<your-project-name"
+vpc_name        = "<your-vpc-name>"
+vpc_dns_name    = "<your-dns-name>"
+vpc_description = "<your-description>"
+instance_count  = 3
+memory          = 4294967296
+ncpus           = 2
+disk_size       = 34359738368
+ubuntu_image_id = "<your-ubuntu-image-id>"
+public_ssh_key  = "<your-ssh-pubkey>"
+ansible_user    = "ubuntu"
+k3s_version     = "v1.30.2+k3s1"
+k3s_token       = "changeme!"
+server_count    = 1
+----
+
+=== 3. Deploy the Infrastructure and Cluster
+
+The provided Makefile automates the deployment. Use these targets:
+
+* **Full Deployment:**
+  This target runs validate, infra-up, deploy, fix-kubeconfig, and check in sequence.
+
+[source,bash]
+----
+make full-deploy
+----
+
+* **Individual Targets:**
+  - Validate Terraform: `make validate`
+  - Bring up infrastructure: `make infra-up`
+  - Deploy with Ansible: `make deploy`
+  - Fix kubeconfig: `make fix-kubeconfig`
+  - Check cluster status: `make check`
+  - Destroy infrastructure: `make destroy`
+  - Verify environment variables: `make env-check`
+
+=== 4. Access the Cluster
+
+After deployment, the kubeconfig file is updated so that the external IP is used for remote access. To interact with your cluster:
+
+[source,bash]
+----
+kubectl config use-context k3s-ansible
+kubectl get nodes
+----
+
+== Upgrading & Destroying
+
+* **Upgrade:**
+  To upgrade the cluster, update the desired variables in `inventory.yml` or `terraform.tfvars` and run the provided upgrade playbook (refer to upstream instructions).
+
+* **Destroy:**
+  Tear down the infrastructure with:
+
+[source,bash]
+----
+make destroy
+----
+
+== Additional Notes
+
+* Testing has been primarily done with Ubuntu, but the K3s-Ansible upstream project has been built to deploy on Debian, RedHat, and SUSE as well.
+* We designed the fork to maintain upstream compatibility. Our modifications (such as inventory generation and kubeconfig post-processing) are implemented in separate files so that you can easily sync with upstream changes. Most of these are in ./infra/oxide, with the exception of this README and the Makefile.
+* Contributions or issues specific to the Oxide integration can be submitted via this fork's GitHub repository.
+
+== Contributing
+
+If you’d like to contribute or report issues specific to the Oxide integration, please open an issue or submit a pull request on this fork's GitHub repository.

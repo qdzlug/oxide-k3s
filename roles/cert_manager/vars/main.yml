@@ -1,14 +1,9 @@
 ---
-cert_manager_email: "qdzlug@gmail.com"
-cert_manager_challenge_type: "dns01" # Options: dns01, http01, selfsigned
-
-dnsimple_token: "BZdrVbTTQCko7ucFo3HvtIqAql0IEl6m"
-dnsimple_production: true
-dnsimple_account_id: "122355"
-
-cert_manager_http01_ingress_class: "traefik"
-
+# cert-manager configuration
+cert_manager_challenge_type: "selfsigned"
+dns_provider_name: "none"
 cert_manager_helm_repo: "https://charts.jetstack.io"
 cert_manager_helm_version: "v1.14.5"
 
-cert_manager_webhook_group_name: acme.virington.com
+# Self-signed certificate configuration
+# No additional configuration needed for self-signed certificates

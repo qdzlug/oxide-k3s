@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jupyterhub-config
+  namespace: jupyterhub
+data:
+  jupyterhub_config.py: |
+    import os
+    
+    # Configuration for JupyterHub
+    c = get_config()
+    
+    # Basic auth configuration
+    c.Authenticator.admin_users = {"admin"}
+    c.Authenticator.allowed_users = {"admin", "user1", "user2", "demo"}
+    
+    # Set the hub to listen on all interfaces
+    c.JupyterHub.bind_url = 'http://0.0.0.0:8000'
+    
+    # Use simple authenticator for demo purposes
+    c.JupyterHub.authenticator_class = 'jupyterhub.auth.DummyAuthenticator'
+    c.DummyAuthenticator.password = "demo123"
+    
+    # Use the simple spawner for demo
+    c.JupyterHub.spawner_class = 'jupyterhub.spawner.SimpleLocalProcessSpawner'
+    
+    # Create local users
+    c.LocalAuthenticator.create_system_users = True
+    
+    # Enable lab by default
+    c.Spawner.default_url = '/lab'
+    c.Spawner.cmd = ['jupyter-labhub']

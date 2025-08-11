@@ -2,7 +2,7 @@
   kubernetes.core.k8s:
     api_version: v1
     kind: Namespace
-    name: argocd
+    name: "{{ argocd_namespace }}"
     state: present
   delegate_to: localhost
   become: false
@@ -11,7 +11,7 @@
 - name: Add argo Helm repo
   community.kubernetes.helm_repository:
     name: argo
-    repo_url: https://argoproj.github.io/argo-helm
+    repo_url: "{{ argocd_helm_repo }}"
   delegate_to: localhost
   become: false
   run_once: true
@@ -19,16 +19,51 @@
 - name: Install ArgoCD via Helm
   community.kubernetes.helm:
     name: argocd
-    chart_ref: argo/argo-cd
-    release_namespace: argocd
+    chart_ref: "{{ argocd_helm_chart }}"
+    release_namespace: "{{ argocd_namespace }}"
     create_namespace: true
     update_repo_cache: true
+    wait: true
+    wait_timeout: "{{ argocd_helm_timeout }}"
     values:
+      global:
+        image:
+          tag: "{{ argocd_version | default('v2.12.3') }}"
       server:
         service:
           type: ClusterIP
         extraArgs:
           - --insecure
+        config:
+          url: "https://{{ argocd_hostname }}"
+          application.instanceLabelKey: argocd.argoproj.io/instance
+      controller:
+        metrics:
+          enabled: "{{ argocd_enable_metrics }}"
+      repoServer:
+        metrics:
+          enabled: "{{ argocd_enable_metrics }}"
+      applicationSet:
+        enabled: "{{ argocd_enable_applicationset }}"
+      notifications:
+        enabled: "{{ argocd_enable_notifications }}"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  register: argocd_helm_result
+
+- name: Wait for ArgoCD pods to be ready
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: "{{ argocd_namespace }}"
+    label_selectors:
+      - app.kubernetes.io/name=argocd-server
+    wait: true
+    wait_condition:
+      type: Ready
+      status: "True"
+    wait_timeout: "{{ argocd_pod_wait_timeout }}"
   delegate_to: localhost
   become: false
   run_once: true
@@ -36,6 +71,12 @@
 - name: Set nginx_lb_ip from inventory
   set_fact:
     nginx_lb_ip: "{{ hostvars[groups['lb'][0]]['ansible_host'] | default(groups['lb'][0]) }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Use configured internal IP if available, otherwise fallback to inventory
+  set_fact:
+    nginx_lb_internal_ip: "{{ nginx_lb_internal_ip | default(hostvars[groups['lb'][0]]['nginx_lb_ip'] | default(nginx_lb_ip)) }}"
   delegate_to: localhost
   run_once: true
 
@@ -47,10 +88,10 @@
       kind: Ingress
       metadata:
         name: argocd
-        namespace: argocd
+        namespace: "{{ argocd_namespace }}"
         annotations:
           cert-manager.io/cluster-issuer: "{{ argocd_tls_issuer | default('letsencrypt-dns') }}"
-          nginx.ingress.kubernetes.io/ssl-redirect: "true"
+          traefik.ingress.kubernetes.io/router.tls: "true"
           external-dns.alpha.kubernetes.io/hostname: "{{ argocd_hostname }}"
           external-dns.alpha.kubernetes.io/target: "{{ nginx_lb_ip }}"
       spec:
@@ -74,6 +115,59 @@
   become: false
   run_once: true
 
+- name: Wait for ArgoCD server deployment to be available
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: argocd-server
+    namespace: "{{ argocd_namespace }}"
+    wait: true
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: "{{ argocd_service_wait_timeout }}"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Verify ArgoCD service exists
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Service
+    name: argocd-server
+    namespace: "{{ argocd_namespace }}"
+  register: argocd_service_info
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Ensure ArgoCD service is available
+  fail:
+    msg: "ArgoCD server service not found"
+  when: argocd_service_info.resources | length == 0
+
+- name: Get ArgoCD initial admin password
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    name: argocd-initial-admin-secret
+    namespace: "{{ argocd_namespace }}"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  register: argocd_secret
+  retries: 10
+  delay: 5
+  until: argocd_secret.resources | length > 0
+
+- name: Display ArgoCD admin credentials
+  debug:
+    msg:
+      - "ArgoCD URL: https://{{ argocd_hostname }}"
+      - "Username: admin"
+      - "Password: {{ argocd_secret.resources[0].data.password | b64decode }}"
+  run_once: true
+
 - name: Wait for ArgoCD via HTTPS with host spoofing
   ansible.builtin.uri:
     url: "https://{{ nginx_lb_ip }}/"
@@ -82,21 +176,64 @@
       Host: "{{ argocd_hostname }}"
     validate_certs: false
     return_content: true
-    status_code: 200
+    status_code: [200, 302]
   delegate_to: localhost
   run_once: true
   become: false
   register: argo_https_check
-  retries: 10
-  delay: 5
+  retries: "{{ argocd_https_check_retries }}"
+  delay: "{{ argocd_https_check_delay }}"
   ignore_errors: true
   until: argo_https_check is defined and
-         (argo_https_check.status | default(0)) == 200
+         (argo_https_check.status | default(0)) in [200, 302]
 
-- name: Debug HTTPS response (for troubleshooting)
+- name: Display ArgoCD access information
   debug:
     msg:
+      - "✅ ArgoCD deployed successfully!"
+      - "🌐 URL: https://{{ argocd_hostname }}"
+      - "👤 Username: admin"
+      - "🔑 Password: {{ argocd_secret.resources[0].data.password | b64decode }}"
+      - "📊 Status: {{ argo_https_check.status | default('undefined') }}"
+  when: argo_https_check.status | default(0) in [200, 302]
+
+- name: Display troubleshooting information
+  debug:
+    msg:
+      - "❌ ArgoCD may not be fully accessible yet"
       - "Status: {{ argo_https_check.status | default('undefined') }}"
-      - "Headers: {{ argo_https_check.headers | default('undefined') }}"
-      - "Body: {{ argo_https_check.content | default('undefined') | truncate(300) }}"
-  when: argo_https_check is defined
+      - "Check DNS resolution and certificate status"
+      - "Try: kubectl -n argocd get pods,svc,ingress"
+  when: argo_https_check.status | default(0) not in [200, 302]
+
+- name: Deploy demo applications
+  kubernetes.core.k8s:
+    definition: "{{ lookup('template', item) | from_yaml }}"
+    state: present
+  delegate_to: localhost
+  become: false
+  run_once: true
+  loop:
+    - application-nginx-demo.yaml.j2
+    - application-whoami.yaml.j2
+    - application-jupyter.yaml.j2
+  when: argo_https_check.status | default(0) in [200, 302]
+
+- name: Display ArgoCD applications sync information
+  debug:
+    msg:
+      - "ArgoCD applications deployed with auto-sync enabled"
+      - "Applications will automatically sync and create their namespaces"
+      - "Monitor sync status with: kubectl get applications -n argocd"
+      - "Applications should sync within 1-2 minutes"
+
+- name: Display demo applications information
+  debug:
+    msg:
+      - "📱 Demo applications deployed:"
+      - "  • Nginx Demo: https://{{ demo_nginx_hostname }}"
+      - "  • JupyterHub: https://{{ jupyter_hostname }}"
+      - "  • Whoami: https://{{ whoami_hostname }}"
+      - "🔄 Applications will sync automatically via ArgoCD"
+      - "🌐 Ingress resources configured with your domains"
+  when: argo_https_check.status | default(0) in [200, 302]

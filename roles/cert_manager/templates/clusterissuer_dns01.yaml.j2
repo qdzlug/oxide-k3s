@@ -6,7 +6,7 @@ metadata:
 spec:
   acme:
     email: "{{ cert_manager_email }}"
-    server: "https://acme-v02.api.letsencrypt.org/directory"
+    server: "https://acme{% if not cert_manager_production %}-staging{% endif %}-v02.api.letsencrypt.org/directory"
     privateKeySecretRef:
       name: letsencrypt-dns-key
     solvers:

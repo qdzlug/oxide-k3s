@@ -1,0 +1,8 @@
+---
+# Ansible Vault file for sensitive variables
+# Encrypt this file with: ansible-vault encrypt group_vars/all/vault.yml
+# Edit with: ansible-vault edit group_vars/all/vault.yml
+
+# DNS Provider secrets
+dnsimple_token: "
+dnsimple_a_vkDcGOp6WmQLRQpRuXTEYclWVPGKbiK0"

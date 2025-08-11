@@ -1,9 +1,12 @@
 ---
 external_dns_namespace: external-dns
-external_dns_provider: dnsimple
-dnsimple_token: dnsimple_a_vkDcGOp6WmQLRQpRuXTEYclWVPGKbiK0
-dnsimple_domain: virington.com
+external_dns_provider: none
+dnsimple_domain: demo.virington.com
 dnsimple_account_id: "122355"
 external_dns_image: registry.k8s.io/external-dns/external-dns:v0.16.1
 external_dns_txt_owner_id: k8s
 external_dns_txt_prefix: external-dns-
+
+# Note: dnsimple_token should be set via Ansible Vault
+# Run: ansible-vault create group_vars/all/vault.yml
+# Add: dnsimple_token: "your_token_here"

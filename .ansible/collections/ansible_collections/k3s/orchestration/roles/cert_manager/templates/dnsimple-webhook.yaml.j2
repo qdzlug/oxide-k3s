@@ -1,0 +1,42 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cert-manager-webhook-dnsimple
+  namespace: cert-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cert-manager-webhook-dnsimple
+  template:
+    metadata:
+      labels:
+        app: cert-manager-webhook-dnsimple
+    spec:
+      containers:
+        - name: cert-manager-webhook-dnsimple
+          image: ghcr.io/puzzle/cert-manager-webhook-dnsimple:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: GROUP_NAME
+              value: "{{ cert_manager_webhook_group_name }}"
+          ports:
+            - containerPort: 443
+              name: https
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 20
+

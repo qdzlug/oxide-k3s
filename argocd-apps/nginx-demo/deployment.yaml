@@ -31,7 +31,12 @@ spec:
         - name: html-content
           mountPath: /usr/share/nginx/html
           readOnly: true
+        - name: data-volume
+          mountPath: /var/log/nginx
       volumes:
       - name: html-content
         configMap:
           name: nginx-html
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: nginx-demo-data-pvc

@@ -1,0 +1,94 @@
+# Project Configuration and Variable Guide
+
+This document outlines the configuration files, required variables, and environment settings for the current project. Each variable is described with its purpose, valid settings, and the context in which it is used.
+
+---
+
+## 🔧 Global Configuration
+
+### `vals.yml`
+Defines high-level configuration settings used across roles.
+
+- **`cluster_name`**: Name of the Kubernetes cluster. *Example: `virington-k3s`*
+- **`k3s_version`**: Version of K3s to install. *Example: `v1.28.2+k3s1`*
+- **`loadbalancer_ip`**: IP of the NGINX load balancer. *Used for cert-manager and external access.*
+
+---
+
+## 🌍 Inventory
+
+### `inventory.yml`
+This is build via a template file in the `terraform` directory. It defines the hosts and groups for Ansible. To modify, edit the template and the variables in the `infra/oxide` directory.
+
+- **`k3s_cluster`**: Main group containing `[master]` and `[node]` subgroups.
+- **`[master]`**: Control plane nodes. Requires `ansible_host` and optionally `ip`.
+- **`[node]`**: Worker nodes. Same structure as master.
+- **`[nginx_lb]`**: Load balancer host(s).
+
+---
+
+## 📜 Role Defaults & Vars
+
+### cert_manager
+Path: `roles/cert_manager/vars/main.yml`
+
+- **`cert_manager_email`**: Used for certificate registration. *Required if using ACME.*
+- **`cert_manager_solver`**: One of `http01`, or `selfsigned`. *Used to choose challenge type.*
+
+### longhorn
+Path: `roles/longhorn/vars/main.yml`
+
+- **`longhorn_namespace`**: Namespace where Longhorn will be deployed.
+- **`longhorn_values`**: Dictionary of Helm values for tuning Longhorn settings.
+
+### nginx_lb
+Path: `roles/nginx_lb/vars/main.yml`
+
+- **`listen_http`**: Port to listen for HTTP. Default: `80`.
+- **`listen_https`**: Port to listen for HTTPS. Default: `443`.
+- **`backend_nodes`**: List of K3s node IPs.
+
+### rmt
+Path: `roles/rmt/vars/main.yml`
+
+- **`rmt_repos`**: List of SUSE RMT repositories to mirror.
+- **`rmt_credentials`**: Credentials for SUSE Customer Center.
+
+### k3s_server
+Path: `roles/k3s_server/defaults/main.yml`
+
+- **`k3s_server_args`**: Extra arguments for `k3s server`. Supports list.
+- **`node_labels`**: Optional node labels.
+
+### k3s_agent
+Path: `roles/k3s_agent/defaults/main.yml`
+
+- **`k3s_agent_args`**: Extra arguments for `k3s agent`.
+- **`node_labels`**: Node-specific labels.
+
+### prereq
+Path: `roles/prereq/defaults/main.yml`
+
+- **`install_tools`**: Whether to install tmux, zsh, etc.
+- **`configure_ssh`**: Enables SSH config for provisioning.
+
+### k3s_upgrade
+Path: `roles/k3s_upgrade/defaults/main.yml`
+
+- **`upgrade_channel`**: K3s channel for upgrade. *Example: `stable`*
+- **`upgrade_concurrency`**: Number of nodes to upgrade in parallel.
+
+---
+
+## ✅ Environment Variables
+
+Environment variables are referenced from playbooks or expected to be exported manually:
+
+- `KUBECONFIG`: Set to the path of the admin kubeconfig, often fetched from the load balancer.
+- `CERT_EMAIL`: Used by cert-manager's ClusterIssuer.
+
+---
+
+## Notes
+- Validate all values in `vals.yml` and `inventory.yml` before provisioning.
+- Ensure credentials and tokens are kept secret and exported securely.

@@ -37,6 +37,10 @@ terraform.rc
 ### Ansible template
 *.retry
 
+# Ansible Vault files
+group_vars/all/vault.yml
+.vault-password
+
 ### Python template
 # Byte-compiled / optimized / DLL files
 __pycache__/

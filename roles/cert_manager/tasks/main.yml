@@ -38,7 +38,7 @@
   delegate_to: localhost
   become: false
   run_once: true
-  when: cert_manager_challenge_type == 'dns01'
+  when: cert_manager_challenge_type == 'dns01' and dns_provider_name == 'dnsimple' and dns_provider_name == 'dnsimple'
 
 - name: Install Puzzle DNSimple webhook via Helm
   kubernetes.core.helm:
@@ -53,7 +53,7 @@
   delegate_to: localhost
   become: false
   run_once: true
-  when: cert_manager_challenge_type == 'dns01'
+  when: cert_manager_challenge_type == 'dns01' and dns_provider_name == 'dnsimple'
 
 - name: Create DNSimple secret (for DNS01)
   kubernetes.core.k8s:
@@ -66,7 +66,7 @@
         namespace: cert-manager
       stringData:
         token: "{{ dnsimple_token }}"
-  when: cert_manager_challenge_type == 'dns01'
+  when: cert_manager_challenge_type == 'dns01' and dns_provider_name == 'dnsimple'
   delegate_to: localhost
   run_once: true
 
@@ -82,7 +82,7 @@
         - apiGroups: ["{{ cert_manager_webhook_group_name }}"]
           resources: ["dnsimple"]
           verbs: ["*"]
-  when: cert_manager_challenge_type == 'dns01'
+  when: cert_manager_challenge_type == 'dns01' and dns_provider_name == 'dnsimple'
 
 - name: Create ClusterRoleBinding for DNSimple webhook
   kubernetes.core.k8s:
@@ -100,7 +100,7 @@
         - kind: ServiceAccount
           name: cert-manager
           namespace: cert-manager
-  when: cert_manager_challenge_type == 'dns01'
+  when: cert_manager_challenge_type == 'dns01' and dns_provider_name == 'dnsimple'
 
 - name: Create Role for webhook to access DNSimple token
   kubernetes.core.k8s:
@@ -116,7 +116,7 @@
           resources: ["secrets"]
           resourceNames: ["dnsimple-api-token-secret"]
           verbs: ["get"]
-  when: cert_manager_challenge_type == 'dns01'
+  when: cert_manager_challenge_type == 'dns01' and dns_provider_name == 'dnsimple'
   delegate_to: localhost
   run_once: true
 
@@ -137,7 +137,7 @@
         kind: Role
         name: dnsimple-token-reader
         apiGroup: rbac.authorization.k8s.io
-  when: cert_manager_challenge_type == 'dns01'
+  when: cert_manager_challenge_type == 'dns01' and dns_provider_name == 'dnsimple'
   delegate_to: localhost
   run_once: true
 
@@ -148,8 +148,23 @@
   delegate_to: localhost
   run_once: true
 
+- name: Set ClusterIssuer name based on challenge type
+  set_fact:
+    cluster_issuer_name: >-
+      {%- if cert_manager_challenge_type == 'selfsigned' -%}
+      selfsigned-cluster-issuer
+      {%- elif cert_manager_challenge_type == 'dns01' -%}
+      letsencrypt-dns
+      {%- elif cert_manager_challenge_type == 'http01' -%}
+      letsencrypt-http
+      {%- else -%}
+      letsencrypt-dns
+      {%- endif -%}
+  delegate_to: localhost
+  run_once: true
+
 - name: Check if ClusterIssuer already exists
-  ansible.builtin.command: kubectl get clusterissuer letsencrypt-dns
+  ansible.builtin.command: kubectl get clusterissuer {{ cluster_issuer_name }}
   register: clusterissuer_check
   ignore_errors: true
   changed_when: false

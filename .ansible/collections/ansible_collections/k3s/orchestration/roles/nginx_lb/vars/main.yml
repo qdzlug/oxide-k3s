@@ -1,0 +1,3 @@
+---
+nginx_lb_traefik_http_nodeport: 30080
+nginx_lb_traefik_https_nodeport: 30443

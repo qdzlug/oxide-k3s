@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jupyterhub
+  namespace: argocd
+  labels:
+    app: jupyterhub
+spec:
+  project: default
+  source:
+    repoURL: '{{ argocd_repo_url }}'
+    path: argocd-apps/jupyterhub
+    targetRevision: {{ argocd_repo_branch }}
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: jupyterhub
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+  revisionHistoryLimit: 3

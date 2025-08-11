@@ -1,0 +1,78 @@
+global:
+  # Kasm hostname - this will be the main URL for accessing KASM
+  hostname: kasm.virington.com
+  
+  # Alternate hostnames (optional)
+  # altHostnames:
+  #   - kasm-alt.virington.com
+  
+  # Kubernetes cluster domain name
+  k8sClusterDomain: cluster.local
+  
+  # Namespace where KASM will be deployed
+  namespace: kasm
+
+# Database configuration
+db:
+  # Use internal PostgreSQL instance
+  internal: true
+  
+redis:
+  # Use internal Redis instance  
+  internal: true
+
+# KASM service configuration
+kasm:
+  # Set admin password (optional - will be generated if not set)
+  # adminPassword: "your-secure-password"
+  
+  # Set user password (optional)
+  # userPassword: "user-secure-password"
+  
+  # Default Images
+  images:
+    api: kasmweb/api:1.17.0
+    manager: kasmweb/manager:1.17.0
+    agent: kasmweb/agent:1.17.0
+    share: kasmweb/share:1.17.0
+    guac: kasmweb/guac:1.17.0
+
+# Resource requests and limits
+resources:
+  api:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi" 
+      cpu: "500m"
+  
+  manager:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+      
+  guac:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "300m"
+
+# Storage configuration
+persistence:
+  storageClass: "local-path"  # K3s default storage class
+  accessMode: ReadWriteOnce
+  size: 10Gi
+
+# Service configuration
+service:
+  type: ClusterIP
+  
+# Ingress configuration - we'll handle this separately with our own ingress
+ingress:
+  enabled: false

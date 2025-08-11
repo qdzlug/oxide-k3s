@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kasm-ingress
+  namespace: argocd
+  labels:
+    app: kasm-ingress
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/qdzlug/oxide-k3s.git'
+    path: argocd-apps/kasm
+    targetRevision: HEAD
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: kasm
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+  revisionHistoryLimit: 3

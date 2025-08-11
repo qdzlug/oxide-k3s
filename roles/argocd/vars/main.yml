@@ -1,3 +1,16 @@
-argocd_hostname: "argocd.virington.com"
-argocd_tls_issuer: "letsencrypt-dns" # or 'selfsigned', 'letsencrypt-http'
+# ArgoCD configuration
+argocd_hostname: "argocd.demo.virington.com"
+argocd_tls_issuer: "letsencrypt-dns"
+argocd_version: "v2.12.3"
 
+# ArgoCD applications configuration
+argocd_repo_url: "https://github.com/qdzlug/oxide-k3s.git"
+argocd_repo_branch: "main"
+
+# Demo application hostnames
+demo_nginx_hostname: "demo.demo.virington.com"
+jupyter_hostname: "jupyter.demo.virington.com"
+whoami_hostname: "whoami.demo.virington.com"
+
+# Infrastructure (nginx_lb_internal_ip derived from inventory)
+dns_domain: "demo.virington.com"

@@ -1,0 +1,27 @@
+---
+- name: Gather facts from k3s_cluster nodes
+  hosts: k3s_cluster
+  gather_facts: yes
+  tasks:
+    - name: Confirm we're gathering facts
+      debug:
+        var: ansible_default_ipv4.address
+
+- name: Debug internal IPs seen by LB
+  hosts: lb
+  gather_facts: yes
+  tasks:
+    - name: Debug all internal IPs
+      debug:
+        msg: >-
+          {{ groups['k3s_cluster']
+             | map('extract', hostvars, ['ansible_default_ipv4', 'address'])
+             | list }}
+
+- name: Configure NGINX Load Balancer for K3s Cluster
+  hosts: lb
+  become: true
+  gather_facts: yes
+  roles:
+    - nginx_lb
+
