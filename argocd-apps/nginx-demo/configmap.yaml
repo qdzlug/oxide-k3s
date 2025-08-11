@@ -41,7 +41,7 @@ data:
             <div class="info">
                 <h3>Available Demo Services:</h3>
                 <ul>
-                    <li><a href="https://argocd.virington.com" style="color: #fff;">ArgoCD Dashboard</a></li>
+                    <li><a href="https://argocd.colo.virington.com" style="color: #fff;">ArgoCD Dashboard</a></li>
                     <li><a href="https://jupyter.virington.com" style="color: #fff;">Jupyter Notebook</a></li>
                     <li><a href="https://whoami.virington.com" style="color: #fff;">WhoAmI Service</a></li>
                 </ul>
