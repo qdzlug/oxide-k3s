@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-html
+  namespace: nginx-demo
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>K3s Demo - GitOps with ArgoCD</title>
+        <style>
+            body { 
+                font-family: Arial, sans-serif; 
+                margin: 50px; 
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+            }
+            .container { 
+                max-width: 800px; 
+                margin: 0 auto; 
+                background: rgba(255,255,255,0.1);
+                padding: 30px;
+                border-radius: 10px;
+                backdrop-filter: blur(10px);
+            }
+            h1 { color: #fff; text-align: center; }
+            .info { background: rgba(255,255,255,0.2); padding: 15px; border-radius: 5px; margin: 10px 0; }
+            ul li { margin: 8px 0; }
+            a { color: #fff; text-decoration: none; font-weight: bold; }
+            a:hover { text-decoration: underline; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🚀 K3s Cluster Demo</h1>
+            <div class="info">
+                <h3>Cluster Information:</h3>
+                <p><strong>GitOps Platform:</strong> ArgoCD</p>
+                <p><strong>Infrastructure:</strong> Oxide Cloud Compute</p>
+                <p><strong>Kubernetes:</strong> K3s {{ k3s_version | default('latest') }}</p>
+                <p><strong>Load Balancer:</strong> {{ nginx_lb_external_ip }}</p>
+            </div>
+            <div class="info">
+                <h3>Available Demo Services:</h3>
+                <ul>
+                    <li><a href="https://{{ argocd_hostname }}" style="color: #fff;">ArgoCD Dashboard</a></li>
+                    <li><a href="https://{{ jupyter_hostname }}" style="color: #fff;">Jupyter Notebook</a></li>
+                    <li><a href="https://{{ whoami_hostname }}" style="color: #fff;">WhoAmI Service</a></li>
+{% if kasm_hostname is defined %}
+                    <li><a href="https://{{ kasm_hostname }}" style="color: #fff;">KASM Workspaces</a></li>
+{% endif %}
+                </ul>
+            </div>
+            <div class="info">
+                <h3>Architecture:</h3>
+                <p>This demo showcases a complete GitOps deployment using:</p>
+                <ul>
+                    <li><strong>ArgoCD</strong> - GitOps continuous deployment</li>
+                    <li><strong>Traefik</strong> - Kubernetes ingress controller</li>
+                    <li><strong>cert-manager</strong> - Automated SSL/TLS certificates</li>
+                    <li><strong>external-dns</strong> - Automated DNS record management</li>
+                    <li><strong>Longhorn</strong> - Distributed block storage</li>
+                </ul>
+            </div>
+            <div class="info">
+                <p><strong>Deployment Domain:</strong> {{ dns_domain }}</p>
+                <p><strong>Repository:</strong> {{ argocd_repo_url }}</p>
+                <p><em>This page is dynamically generated from Ansible templates.</em></p>
+            </div>
+        </div>
+    </body>
+    </html>

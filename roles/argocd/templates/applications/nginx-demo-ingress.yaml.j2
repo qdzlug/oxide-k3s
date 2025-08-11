@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nginx-demo
+  namespace: nginx-demo
+  annotations:
+    cert-manager.io/cluster-issuer: "{{ argocd_tls_issuer }}"
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    external-dns.alpha.kubernetes.io/hostname: "{{ demo_nginx_hostname }}"
+    external-dns.alpha.kubernetes.io/target: "{{ nginx_lb_external_ip }}"
+spec:
+  ingressClassName: traefik
+  tls:
+  - hosts:
+    - "{{ demo_nginx_hostname }}"
+    secretName: demo-tls
+  rules:
+  - host: "{{ demo_nginx_hostname }}"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nginx-demo
+            port:
+              number: 80

@@ -197,6 +197,56 @@
       - "📊 Status: {{ argo_https_check.status | default('undefined') }}"
   when: argo_https_check.status | default(0) in [200, 302]
 
+# Deploy templated application resources
+- name: Deploy templated application ingresses
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ item }}"
+  loop:
+    - "{{ lookup('template', 'applications/nginx-demo-ingress.yaml.j2') | from_yaml }}"
+    - "{{ lookup('template', 'applications/jupyterhub-ingress.yaml.j2') | from_yaml }}"
+    - "{{ lookup('template', 'applications/whoami-ingress.yaml.j2') | from_yaml }}"
+  delegate_to: localhost
+  run_once: true
+  become: false
+
+- name: Check if KASM namespace exists
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Namespace
+    name: kasm
+  register: kasm_namespace_check
+  delegate_to: localhost
+  run_once: true
+  become: false
+
+- name: Deploy KASM ingress if namespace exists
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', 'applications/kasm-ingress.yaml.j2') | from_yaml }}"
+  delegate_to: localhost
+  run_once: true
+  become: false
+  when: kasm_namespace_check.resources | length > 0
+
+- name: Deploy templated nginx-demo configmap
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', 'applications/nginx-demo-configmap.yaml.j2') | from_yaml }}"
+  delegate_to: localhost
+  run_once: true
+  become: false
+
+- name: Display templated application URLs
+  debug:
+    msg:
+      - "📱 Templated Applications Deployed:"
+      - "🌐 Nginx Demo: https://{{ demo_nginx_hostname }}"
+      - "📊 JupyterHub: https://{{ jupyter_hostname }}"
+      - "🔍 WhoAmI: https://{{ whoami_hostname }}"
+      - "🖥️  KASM: https://{{ kasm_hostname }}"
+      - "🏗️  Load Balancer IP: {{ nginx_lb_external_ip }}"
+
 - name: Display troubleshooting information
   debug:
     msg:

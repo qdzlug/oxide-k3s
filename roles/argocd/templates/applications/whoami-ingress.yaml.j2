@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: whoami
+  namespace: whoami
+  annotations:
+    cert-manager.io/cluster-issuer: "{{ argocd_tls_issuer }}"
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    external-dns.alpha.kubernetes.io/hostname: "{{ whoami_hostname }}"
+    external-dns.alpha.kubernetes.io/target: "{{ nginx_lb_external_ip }}"
+spec:
+  ingressClassName: traefik
+  tls:
+  - hosts:
+    - "{{ whoami_hostname }}"
+    secretName: whoami-tls
+  rules:
+  - host: "{{ whoami_hostname }}"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: whoami
+            port:
+              number: 80
